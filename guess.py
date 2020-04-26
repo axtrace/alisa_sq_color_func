@@ -1,5 +1,8 @@
 import random
+import pickle
+import os
 
+file_path = os.path.normpath(r'/tmp/myfile.dat')
 
 def square_color(square):
     file = square[0]
@@ -11,8 +14,8 @@ def square_color(square):
     return 'WHITE'
 
 def while_or_black(text):
-    whites = ('белый', 'белая', 'белые', 'белое')
-    blacks = ('черный', 'черная', 'черное', 'черные', 'чёрн')
+    whites = ('белый', 'белая', 'белые', 'белое', 'белого')
+    blacks = ('черный', 'черная', 'черное', 'черные', 'чёрн', 'черного','черн')
     for c in whites:
         if c in text:
             return 'WHITE'
@@ -48,6 +51,28 @@ def say_color(color):
         return 'чёрного'
     return ''
 
+def dump_to_file(user_id, square, color):      
+    with open(file_path, 'wb') as f:
+        if os.stat(file_path).st_size > 0:
+            data = pickle.load(f)
+        else:
+            data = dict()
+        data[user_id] = {'square':square, 'color': color}
+        pickle.dump(data, f)
+
+def load_from_file(user_id):
+    square = ''
+    color = ''
+    data = dict()
+    with open(file_path, 'rb') as f:
+        if os.stat(file_path).st_size > 0:
+            data = pickle.load(f)
+    user_data = data.get(user_id,'')
+    if user_data:
+        square = user_data.get('square', '')
+        color = user_data.get('color','')
+    return square,color
+
 
 def handler(event, context):
     """
@@ -66,7 +91,9 @@ def handler(event, context):
 
     if event is not None and 'request' in event and 'original_utterance' in event['request'] and len(event['request']['original_utterance']):
         text = event['request']['command']
+
         user_color = while_or_black(text.lower())
+        user_id = event['session']['user_id']
 
         if 'помощь' in text.lower() or 'что ты умеешь' in text.lower():
             answer = 'Я называю координаты шахматной клетки, а ты угадываешь её цвет. Например, а1 - чёрный, a2 - белый'
@@ -75,7 +102,9 @@ def handler(event, context):
             color = square_color(square)
             answer = f'Какого цвета клетка {square}?'
             answer_tts = f'Какого цвета клетка {say_square(square)}?'
+            dump_to_file(user_id, square, color)
         elif user_color:
+            square, color = load_from_file(user_id)
             if user_color == color:
                 answer = 'Правильно!'
             else:
@@ -83,6 +112,7 @@ def handler(event, context):
                 answer_tts = f'Неправильно! Клетка {say_square(square)} {say_color(color)} цвета'
             square = random_square()
             color = square_color(square)
+            dump_to_file(user_id, square, color)
             answer += f'. А теперь скажи, какого цвета клетка {square}?'
             answer_tts += f'. А теперь скажи, какого цвета клетка {say_square(square)}?' 
         else:
